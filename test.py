@@ -3,14 +3,14 @@ import chainer
 from chainer.training import extensions
 import numpy as np
 import argparse
-
+from PIL import Image
 
 class MyFeatureExtrator(chainer.Chain):
     def __init__(self):
         super(MyFeatureExtrator, self).__init__()
         with self.init_scope():
-            self.conv1 = chainer.links.Convolution2D(in_channels=1, out_channels=64, ksize=5, stride=1)
-            self.conv2 = chainer.links.Convolution2D(in_channels=None, out_channels=128, ksize=3, stride=1)
+            self.conv1 = chainer.links.Convolution2D(in_channels=1, out_channels=16, ksize=5, stride=1)
+            self.conv2 = chainer.links.Convolution2D(in_channels=None, out_channels=32, ksize=3, stride=1)
 
     def __call__(self, x):
         h = chainer.functions.max_pooling_2d(chainer.functions.relu(self.conv1(x)), ksize=2)
@@ -25,13 +25,15 @@ class MyDiscriminator(chainer.Chain):
             self.linear = chainer.links.Linear(None, 10)
 
     def __call__(self, x):
-        return chainer.functions.relu(self.linear(x))
+        return self.linear(x)
 
 
-class MyNet():
+class MyNet(chainer.Chain):
     def __init__(self, extr, disc, gpu=-1):
-        self.extr = extr
-        self.disc = disc
+        super(MyNet, self).__init__()
+        with self.init_scope():
+            self.extr = extr
+            self.disc = disc
         self.mode = 'pre_train'
         if gpu >= 0:
             self.extr.to_gpu()
@@ -68,7 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', '-g', type=int, default=0)
     parser.add_argument('--epoch', '-e', type=int, default=20)
 
-    parser.add_argument('--pre_dataset', '-pd', default='fashion-mnist')
+    parser.add_argument('--pre_dataset', '-pd', default='cifar-10')
     parser.add_argument('--fin_dataset', '-fd', default='mnist')
 
     args = parser.parse_args()
@@ -76,9 +78,20 @@ if __name__ == '__main__':
         if dataset == 'mnist':
             train, test = chainer.datasets.get_mnist(ndim=3)
         elif dataset == 'cifar-10':
-            pass
-            # TODO: resize image size
-            # train, test = chainer.datasets.get_cifar10(ndim=3)
+            # resize image size to 28x28
+            train, test = chainer.datasets.get_cifar10(ndim=3, withlabel=True, scale=255.)
+            tmp_array = []
+            for array, label in train:
+                image = np.asarray(Image.fromarray(np.uint8(array.transpose(1, 2, 0))).resize((28, 28)).convert('L')).reshape(1, 28, 28).astype(np.float32)/255.
+                tmp_array.append((image, label))
+            train = tmp_array
+            tmp_array = []
+            for array, label in test:
+                image = np.asarray(Image.fromarray(np.uint8(array.transpose(1, 2, 0))).resize((28, 28)).convert('L')).reshape(1, 28, 28).astype(np.float32)/255.
+                tmp_array.append((image, label))
+            test = tmp_array
+            del tmp_array
+
         elif dataset == 'fashion-mnist':
             data = input_data.read_data_sets('../fashion-mnist/data/fashion')
             train = [(x.reshape(28, 28)[np.newaxis, :], y.astype(np.int32)) for x, y in zip(data.train.images, data.train.labels)]
@@ -95,10 +108,10 @@ if __name__ == '__main__':
     optimizer = chainer.optimizers.AdaGrad()
     optimizer.setup(model)
     updater = chainer.training.StandardUpdater(train_iter, optimizer=optimizer, device=args.gpu)
-    pre_trainer = chainer.training.Trainer(updater, (args.epoch, 'epoch'), out='pre_result')
+    pre_trainer = chainer.training.Trainer(updater, (args.epoch, 'epoch'), out= 'pre_result_' + args.pre_dataset)
     pre_trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu))
     pre_trainer.extend(extensions.LogReport())
-    pre_trainer.extend(extensions.PlotReport(['epoch', 'main/accuray', 'validation/main/accuracy']))
+    pre_trainer.extend(extensions.PlotReport(['main/accuray', 'validation/main/accuracy']))
     pre_trainer.extend(extensions.ProgressBar())
     pre_trainer.run()
 
@@ -111,9 +124,9 @@ if __name__ == '__main__':
     optimizer = chainer.optimizers.AdaGrad()
     optimizer.setup(model)
     updater = chainer.training.StandardUpdater(train_iter, optimizer=optimizer, device=args.gpu)
-    fin_trainer = chainer.training.Trainer(updater, (args.epoch, 'epoch'), out='fin_result')
+    fin_trainer = chainer.training.Trainer(updater, (args.epoch, 'epoch'), out='pre_result_' + args.pre_dataset + '_fin_result_' + args.fin_dataset)
     fin_trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu))
     fin_trainer.extend(extensions.LogReport())
-    fin_trainer.extend(extensions.PlotReport(['epoch', 'main/accuray', 'validation/main/accuracy']))
+    fin_trainer.extend(extensions.PlotReport(['main/accuray', 'validation/main/accuracy']))
     fin_trainer.extend(extensions.ProgressBar())
     fin_trainer.run()
