@@ -4,7 +4,8 @@
 # Requirements
 chainer 2.0.0
 
-use [fashion-mnist]<https://github.com/zalandoresearch/fashion-mnist>
+use [fashion-mnist](https://github.com/zalandoresearch/fashion-mnist)
+
 tensorflow
 
 
