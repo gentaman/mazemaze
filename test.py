@@ -4,17 +4,24 @@ from chainer.training import extensions
 import numpy as np
 import argparse
 from PIL import Image
+import net
+import os
+
 
 class MyFeatureExtrator(chainer.Chain):
     def __init__(self):
         super(MyFeatureExtrator, self).__init__()
         with self.init_scope():
-            self.conv1 = chainer.links.Convolution2D(in_channels=1, out_channels=16, ksize=5, stride=1)
-            self.conv2 = chainer.links.Convolution2D(in_channels=None, out_channels=32, ksize=3, stride=1)
+            self.conv1 = chainer.links.Convolution2D(
+                        in_channels=1, out_channels=16, ksize=5, stride=1)
+            self.conv2 = chainer.links.Convolution2D(
+                        in_channels=None, out_channels=32, ksize=3, stride=1)
 
     def __call__(self, x):
-        h = chainer.functions.max_pooling_2d(chainer.functions.relu(self.conv1(x)), ksize=2)
-        h = chainer.functions.max_pooling_2d(chainer.functions.relu(self.conv2(h)), ksize=2)
+        h = chainer.functions.max_pooling_2d(
+            chainer.functions.relu(self.conv1(x)), ksize=2)
+        h = chainer.functions.max_pooling_2d(
+            chainer.functions.relu(self.conv2(h)), ksize=2)
         return h
 
 
@@ -82,12 +89,16 @@ if __name__ == '__main__':
             train, test = chainer.datasets.get_cifar10(ndim=3, withlabel=True, scale=255.)
             tmp_array = []
             for array, label in train:
-                image = np.asarray(Image.fromarray(np.uint8(array.transpose(1, 2, 0))).resize((28, 28)).convert('L')).reshape(1, 28, 28).astype(np.float32)/255.
+                image = np.asarray(
+                        Image.fromarray(np.uint8(array.transpose(1, 2, 0))).resize((28, 28)).convert('L')
+                        ).reshape(1, 28, 28).astype(np.float32)/255.
                 tmp_array.append((image, label))
             train = tmp_array
             tmp_array = []
             for array, label in test:
-                image = np.asarray(Image.fromarray(np.uint8(array.transpose(1, 2, 0))).resize((28, 28)).convert('L')).reshape(1, 28, 28).astype(np.float32)/255.
+                image = np.asarray(
+                        Image.fromarray(np.uint8(array.transpose(1, 2, 0))).resize((28, 28)).convert('L')
+                        ).reshape(1, 28, 28).astype(np.float32)/255.
                 tmp_array.append((image, label))
             test = tmp_array
             del tmp_array
@@ -100,33 +111,37 @@ if __name__ == '__main__':
             raise
         return train, test
 
-    train, test = make_dataset(args.pre_dataset)
-    train_iter = chainer.iterators.SerialIterator(train, batch_size=args.batch_size, shuffle=True)
-    test_iter = chainer.iterators.SerialIterator(test, batch_size=args.batch_size, shuffle=True, repeat=False)
-    net = MyNet(MyFeatureExtrator(), MyDiscriminator(), gpu=args.gpu)
-    model = Classifier(net)
-    optimizer = chainer.optimizers.AdaGrad()
-    optimizer.setup(model)
-    updater = chainer.training.StandardUpdater(train_iter, optimizer=optimizer, device=args.gpu)
-    pre_trainer = chainer.training.Trainer(updater, (args.epoch, 'epoch'), out= 'pre_result_' + args.pre_dataset)
-    pre_trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu))
-    pre_trainer.extend(extensions.LogReport())
-    pre_trainer.extend(extensions.PlotReport(['main/accuray', 'validation/main/accuracy']))
-    pre_trainer.extend(extensions.ProgressBar())
-    pre_trainer.run()
+    def do_training(network, train, test, optimizer=chainer.optimizers.AdaGrad(), **kwargs):
+        train_iter = chainer.iterators.SerialIterator(train, batch_size=kwargs["batch_size"], shuffle=True)
+        test_iter = chainer.iterators.SerialIterator(test, batch_size=kwargs["batch_size"], shuffle=True, repeat=False)
+        model = Classifier(network)
+        optimizer.setup(model)
+        updater = chainer.training.StandardUpdater(train_iter, optimizer=optimizer, device=kwargs["gpu"])
+        trainer = chainer.training.Trainer(updater, (kwargs["epoch"], 'epoch'), out= kwargs["out"])
+        trainer.extend(extensions.Evaluator(test_iter, model, device=kwargs["gpu"]))
+        trainer.extend(extensions.LogReport())
+        trainer.extend(extensions.PlotReport(['main/accuray', 'validation/main/accuracy']))
+        trainer.extend(extensions.ProgressBar())
+        trainer.run()
 
-    train, test = make_dataset(args.fin_dataset)
-    train_iter = chainer.iterators.SerialIterator(train, batch_size=args.batch_size, shuffle=True)
-    test_iter = chainer.iterators.SerialIterator(test, batch_size=args.batch_size, shuffle=True, repeat=False)
+    def mazemaze(args, i=1):
+        train, test = make_dataset(args.pre_dataset)
+        network = MyNet(net.VarNet(i), MyDiscriminator(), gpu=args.gpu)
+        do_training(network, train, test,
+                    out=os.path.join('pre_result_' + args.pre_dataset, str(i)),
+                    batch_size=args.batch_size,
+                    gpu=args.gpu,
+                    epoch=args.epoch
+                    )
 
-    net.chmod('fin_train')
-    model = Classifier(net)
-    optimizer = chainer.optimizers.AdaGrad()
-    optimizer.setup(model)
-    updater = chainer.training.StandardUpdater(train_iter, optimizer=optimizer, device=args.gpu)
-    fin_trainer = chainer.training.Trainer(updater, (args.epoch, 'epoch'), out='pre_result_' + args.pre_dataset + '_fin_result_' + args.fin_dataset)
-    fin_trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu))
-    fin_trainer.extend(extensions.LogReport())
-    fin_trainer.extend(extensions.PlotReport(['main/accuray', 'validation/main/accuracy']))
-    fin_trainer.extend(extensions.ProgressBar())
-    fin_trainer.run()
+        train, test = make_dataset(args.fin_dataset)
+        network.chmod('fin_train')
+        do_training(network, train, test,
+                    out=os.path.join('pre_result_' + args.pre_dataset + '_fin_result_' + args.fin_dataset, str(i)),
+                    batch_size=args.batch_size,
+                    gpu=args.gpu,
+                    epoch=args.epoch
+                    )
+
+    for i in range(1, 4):
+        mazemaze(args, i)
