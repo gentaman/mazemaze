@@ -15,8 +15,6 @@ class VarNet(chainer.ChainList):
 
     def __call__(self, x):
         h = x
-        #print(self.links())
-        #exit()
         for link in self.children():
             h = chainer.functions.max_pooling_2d(
                 chainer.functions.relu(link(h)), ksize=2)
