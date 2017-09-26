@@ -4,12 +4,12 @@
 # LRP
 [Layer-wise Relevance Propagation](https://arxiv.org/abs/1604.00825)
 
-![pre train layer-1](./pre_result_cifar-10/1/visualize_byLRP.png)
-![fine tune layer-1](./pre_result_cifar-10_fin_result_mnist/1/visualize_byLRP.png)
-![pre train layer-2](./pre_result_cifar-10/2/visualize_byLRP.png)
-![fine tune layer-2](./pre_result_cifar-10_fin_result_mnist/2/visualize_byLRP.png)
-![pre train layer-3](./pre_result_cifar-10/3/visualize_byLRP.png)
-![fine tune layer-3](./pre_result_cifar-10_fin_result_mnist/3/visualize_byLRP.png)
+![pre train layer-1](./pre_result_cifar-10/1/visualize_byLRP.png "pre train layer-1")
+![fine tune layer-1](./pre_result_cifar-10_fin_result_mnist/1/visualize_byLRP.png "fine tune layer-1")
+![pre train layer-2](./pre_result_cifar-10/2/visualize_byLRP.png "pre train layer-2")
+![fine tune layer-2](./pre_result_cifar-10_fin_result_mnist/2/visualize_byLRP.png "fine tune layer-2")
+![pre train layer-3](./pre_result_cifar-10/3/visualize_byLRP.png "pre train layer-2")
+![fine tune layer-3](./pre_result_cifar-10_fin_result_mnist/3/visualize_byLRP.png "fine tune layer-3")
 
 
 # Requirements
