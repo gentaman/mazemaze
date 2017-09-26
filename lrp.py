@@ -139,6 +139,7 @@ def main():
 
 
 def LRP(z):
+    assert isinstance(z, chainer.Variable), "type of the input is {}".format(type(z))
     creator = z.creator
     var = z
     # relevance value
