@@ -7,6 +7,7 @@ from PIL import Image
 import net
 import os
 from lrp import LRP, RetainOutputHook
+import matplotlib.pyplot as plt
 
 
 class MyFeatureExtrator(chainer.Chain):
@@ -77,6 +78,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', '-b', type=int, default=100)
     parser.add_argument('--gpu', '-g', type=int, default=0)
     parser.add_argument('--epoch', '-e', type=int, default=20)
+    parser.add_argument('--epsilon', '-epsilon', type=float, default=100)
 
     parser.add_argument('--pre_dataset', '-pd', default='cifar-10')
     parser.add_argument('--fin_dataset', '-fd', default='mnist')
@@ -112,17 +114,6 @@ if __name__ == '__main__':
             raise
         return train, test
 
-    import matplotlib.pyplot as plt
-
-    def view_weight(weight, out='result', fname='weight.png'):
-        assert len(weight.shape) == 3
-        n, w, h = weight.shape
-        fig, axs = plt.subplots(n)
-        for i in range(n):
-            axs[i].imshow(weight[i].reshape(w, h))
-        plt.savefig(os.path.join(out, fname))
-        plt.show()
-
     def do_training(network, train, test, optimizer=chainer.optimizers.AdaGrad(), **kwargs):
         train_iter = chainer.iterators.SerialIterator(train, batch_size=kwargs["batch_size"], shuffle=True)
         test_iter = chainer.iterators.SerialIterator(test, batch_size=kwargs["batch_size"], shuffle=True, repeat=False)
@@ -135,21 +126,19 @@ if __name__ == '__main__':
         trainer.extend(extensions.PlotReport(['main/accuray', 'validation/main/accuracy']))
         trainer.extend(extensions.ProgressBar())
         trainer.run()
-        # view_weight(chainer.cuda.to_cpu(network.extr[0].W.data[:, 0, :, :]), out=kwargs["out"])
 
-    def view_lrp(network, inputs, out='result'):
+    def view_lrp(network, inputs, epsilon=0, out='result'):
         with RetainOutputHook():
             outputs = network(inputs)
-        results = LRP(outputs)
+        results = LRP(outputs, epsilon)
 
-        import matplotlib.pyplot as plt
         fig, axs = plt.subplots(
             results.shape[0], 2, figsize=(2*2, results.shape[0]*2), subplot_kw={'xticks': [], 'yticks': []})
         for i in range(results.shape[0]):
             im = inputs[i][0]
             axs[i, 0].imshow(im, vmin=im.min(), vmax=im.max(), cmap='gray')
             im = results[i][0]
-            axs[i, 1].imshow(im, vmin=im.min(), vmax=im.max())
+            axs[i, 1].imshow(im, vmin=im.min(), vmax=im.max(), cmap='plasma')
         plt.savefig(os.path.join(out, 'visualize_byLRP.png'))
 
     def mazemaze(args, i=1):
@@ -163,12 +152,9 @@ if __name__ == '__main__':
                     )
         view_lrp(network.to_cpu(),
                  np.array(map(lambda x: x[0], train[10:20])),
+                 epsilon=args.epsilon,
                  out=os.path.join('pre_result_' + args.pre_dataset, str(i)))
 
-        # data = chainer.cuda.to_cpu(network.disc.linear.W.data)
-        # n, w = data.shape
-        # view_weight(data.reshape(n, w//2, w/(w//2)), out='.', fname='bf.png')
-        # tmp = network.disc.linear.W.data.sum()
         train, test = make_dataset(args.fin_dataset)
         network.chmod('fin_train')
         do_training(network, train, test,
@@ -180,12 +166,8 @@ if __name__ == '__main__':
         network.chmod(None)
         view_lrp(network.to_cpu(),
                  np.array(map(lambda x: x[0], train[10:20])),
+                 epsilon=args.epsilon,
                  out=os.path.join('pre_result_' + args.pre_dataset + '_fin_result_' + args.fin_dataset, str(i)))
-        # data = chainer.cuda.to_cpu(network.disc.linear.W.data)
-        # n, w = data.shape
-        # view_weight(data.reshape(n, w//2, w/(w//2)), out='.', fname='af.png')
-        # print network.disc.linear.W.data.sum() - tmp
-        # exit()
 
     for i in range(1, 4):
         mazemaze(args, i)
